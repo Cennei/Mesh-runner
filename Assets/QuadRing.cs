@@ -2,54 +2,78 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+[RequireComponent(typeof(MeshFilter))]
 public class QuadRing : MonoBehaviour
 {
     [Range(0.01f, 2)]
     [SerializeField] float radiusInner;
-
     [Range(0.01f, 2)]
     [SerializeField] float thickness;
+    [Range(3,32)]
+    [SerializeField] int angularSegmentsCount = 3;
 
-    float RadiusOuter => radiusInner + thickness; 
+    Mesh mesh;
 
-    [Range(3,256)]
-    [SerializeField] int angularSegments = 3;
+    float RadiusOuter => radiusInner + thickness;
+    int VertexCount => angularSegmentsCount * 2;
 
     private void OnDrawGizmosSelected()
     {
-
-        DrawWireCircle(transform.position, transform.rotation, 1);
-
-        /*
-        Gizmos.DrawWireSphere( transform.position, radiusInner);
-        Gizmos.DrawWireSphere(transform.position, RadiusOuter);
-        */
+        Gizmosfs.DrawWireCircle(transform.position, transform.rotation, radiusInner, angularSegmentsCount);
+        Gizmosfs.DrawWireCircle(transform.position, transform.rotation, RadiusOuter, angularSegmentsCount);
     }
 
-    const float TAU = 6.28318530718f;
-
-    public static void DrawWireCircle(Vector3 pos, Quaternion rot, float radius, int detail = 32)
+    void Awake()
     {
-        Vector2[] points3D = new Vector2[detail];
-        for (int i = 0; i < detail; i++)
-        {
-            float t = i / (float)detail;
-            float angRad = t * TAU;
 
-            Vector2 point2D = new Vector2(
-                Mathf.Cos(angRad) * radius,
-                Mathf.Sin(angRad) * radius
-                );
+        mesh = new Mesh();
+        mesh.name = "QuadRing";
 
-            points3D[i] = pos + rot * point2D;
-        }
-
-        // Draw all point as dots
-        for (int i = 0; i < detail-1; i++)
-        {
-            Gizmos.DrawLine(points3D[i], points3D[i+1]);
-        }
-
-        Gizmos.DrawLine(points3D[detail-1], points3D[0]);
+        GetComponent<MeshFilter>().sharedMesh = mesh;
     }
+
+    void Update() => GenerateMesh(); 
+
+    void GenerateMesh()
+    {
+
+        mesh.Clear();
+
+        int vCount = VertexCount;
+        List<Vector3> vertices = new List<Vector3>();
+        for (int i = 0; i < angularSegmentsCount; i++)
+        {
+            float t = i / (float)angularSegmentsCount;
+            float angRad = t * Mathfs.TAU;
+            Vector2 direction = Mathfs.GetUnitVectorByAngle(angRad);
+
+            vertices.Add(direction * RadiusOuter);
+            vertices.Add(direction * radiusInner);
+        }
+
+        List<int> triangleIndices = new List<int>();
+        for(int i = 0; i < angularSegmentsCount; i++)
+        {
+
+            int indexRoot = i * 2;
+
+            int indexInnerRoot = indexRoot + 1;
+            int indexOuterNext = (indexRoot + 2) % vCount;
+            int indexInnerNext = (indexRoot + 3) % vCount;
+
+            triangleIndices.Add(indexRoot);
+            triangleIndices.Add(indexOuterNext);
+            triangleIndices.Add(indexInnerNext);
+
+            triangleIndices.Add(indexRoot);
+            triangleIndices.Add(indexInnerNext);
+            triangleIndices.Add(indexInnerRoot);
+        }
+
+        mesh.SetVertices(vertices);
+        mesh.SetTriangles(triangleIndices, 0);
+        mesh.RecalculateNormals();
+
+    }
+
 }
